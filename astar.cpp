@@ -4,9 +4,6 @@
 #include <limits.h>
 #include <vector>
 
-static std::vector<astarnode> opened;
-static std::vector<astarnode> closed;
-
 //!< This is our heuristic: estimate for remaining distance is the nr of mismatched atoms that matter.
 static int calc_h(worldstate_t fr, worldstate_t to) {
     const bfield_t care = (to.dontcare ^ -1LL);
@@ -19,8 +16,8 @@ static int calc_h(worldstate_t fr, worldstate_t to) {
 }
 
 //!< Internal function to look up a world state in our opened set.
-static int idx_in(worldstate_t ws, astarnode* set, size_t size) {
-    for (int i = 0; i < size; ++i)
+static int idx_in(worldstate_t ws, std::vector<astarnode> set) {
+    for (int i = 0; i < set.size(); ++i)
         if (set[i].ws.values == ws.values)
             return i;
     return -1;
@@ -28,7 +25,7 @@ static int idx_in(worldstate_t ws, astarnode* set, size_t size) {
 
 //!< Internal function to reconstruct the plan by tracing from last node to initial node.
 static void reconstruct_plan(
-    actionplanner_t *ap, astarnode *goalnode, const char **plan, worldstate_t *worldstates, int *plansize) {
+    actionplanner_t *ap, astarnode *goalnode, const char **plan, worldstate_t *worldstates, int *plansize, std::vector<astarnode> closed) {
     astarnode *curnode = goalnode;
     int idx = *plansize - 1;
     int numsteps = 0;
@@ -36,7 +33,7 @@ static void reconstruct_plan(
         if (idx >= 0) {
             plan[idx] = curnode->actionname;
             worldstates[idx] = curnode->ws;
-            const int i = idx_in(curnode->parentws, closed.data(), closed.size());
+            const int i = idx_in(curnode->parentws, closed);
             curnode = (i == -1) ? 0 : &closed[i];
         }
         --idx;
@@ -81,8 +78,9 @@ int astar_plan(
     const char **plan,
     worldstate_t *worldstates,
     int *plansize) {
+    std::vector<astarnode> opened;
+    std::vector<astarnode> closed;
     // put start in opened list
-    opened.clear();
     astarnode n0;
     n0.ws = start;
     n0.parentws = start;
@@ -91,14 +89,8 @@ int astar_plan(
     n0.f = n0.g + n0.h;
     n0.actionname = 0;
     opened.push_back(n0);
-    // empty closed list
-    closed.clear();
 
-    do {
-        if (opened.empty()) {
-            printf("Did not find a path.\n");
-            return -1;
-        }
+    while (!opened.empty()) {
         // find the node with lowest rank
         int lowestIdx = -1;
         int lowestVal = INT_MAX;
@@ -110,18 +102,13 @@ int astar_plan(
         }
         // remove the node with the lowest rank
         astarnode cur = opened[lowestIdx];
-        if (!opened.empty()) {
-            opened[lowestIdx] = opened.back();
-        }
+        opened[lowestIdx] = opened.back();
         opened.pop_back();
-        //static char dsc[2048];
-        //goap_worldstate_description( ap, &cur.ws, dsc, sizeof(dsc) );
-        //printf( dsc );
         // if it matches the goal, we are done!
         const bfield_t care = (goal.dontcare ^ -1LL);
         const bool match = ((cur.ws.values & care) == (goal.values & care));
         if (match) {
-            reconstruct_plan(ap, &cur, plan, worldstates, plansize);
+            reconstruct_plan(ap, &cur, plan, worldstates, plansize, closed);
             return cur.f;
         }
         // add it to closed
@@ -132,32 +119,20 @@ int astar_plan(
         worldstate_t to[MAXACTIONS];
         const int numtransitions =
             goap_get_possible_state_transitions(ap, cur.ws, to, actionnames, actioncosts, MAXACTIONS);
-        //printf( "%d neighbours\n", numtransitions );
         for (int i = 0; i < numtransitions; ++i) {
-            astarnode nb;
             const int cost = cur.g + actioncosts[i];
-            int idx_o = idx_in(to[i], opened.data(), opened.size());
-            int idx_c = idx_in(to[i], closed.data(), closed.size());
+            int idx_o = idx_in(to[i], opened);
+            int idx_c = idx_in(to[i], closed);
             // if neighbor in OPEN and cost less than g(neighbor):
-            if (idx_o >= 0 && cost < opened[idx_o].g) {
+            if (idx_o != -1 && cost < opened[idx_o].g) {
                 // remove neighbor from OPEN, because new path is better
-                if (!opened.empty()) {
-                    opened[idx_o] = opened.back();
-                }
+                opened[idx_o] = opened.back();
                 opened.pop_back();
                 idx_o = -1; // BUGFIX: neighbor is no longer in OPEN, signal this so that we can re-add it.
             }
-            // if neighbor in CLOSED and cost less than g(neighbor):
-            if (idx_c >= 0 && cost < closed[idx_c].g) {
-                // remove neighbor from CLOSED
-                if (!closed.empty()) {
-                    closed[idx_c] = closed.back();
-                }
-                closed.pop_back();
-                idx_c = -1; // BUGFIX: neighbour is no longer in CLOSED< signal this so that we can re-add it.
-            }
             // if neighbor not in OPEN and neighbor not in CLOSED:
             if (idx_c == -1 && idx_o == -1) {
+                astarnode nb;
                 nb.ws = to[i];
                 nb.g = cost;
                 nb.h = calc_h(nb.ws, goal);
@@ -167,7 +142,8 @@ int astar_plan(
                 opened.push_back(nb);
             }
         }
-    } while (true);
+    }
 
+    printf("Did not find a path.\n");
     return -1;
 }
