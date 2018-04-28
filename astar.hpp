@@ -4,8 +4,6 @@
 
 #include "goap.hpp"
 
-struct astarnode;
-
 //!< A node in our network of world states.
 struct astarnode {
     worldstate_t ws;        //!< The state of the world at this node.
@@ -16,10 +14,8 @@ struct astarnode {
     worldstate_t parentws;  //!< Where did we come from?
 };
 
-typedef struct astarnode astarnode_t;
-
 //! Make a plan of actions that will reach desired world state. Returns total cost of the plan.
-extern int astar_plan(
+int astar_plan(
     actionplanner_t *ap,       //!< the goap action planner that holds atoms and action repertoire
     worldstate_t start,        //!< the current world state
     worldstate_t goal,         //!< the desired world state

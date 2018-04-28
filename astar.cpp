@@ -4,8 +4,8 @@
 #include <limits.h>
 #include <vector>
 
-static std::vector<astarnode_t> opened;
-static std::vector<astarnode_t> closed;
+static std::vector<astarnode> opened;
+static std::vector<astarnode> closed;
 
 //!< This is our heuristic: estimate for remaining distance is the nr of mismatched atoms that matter.
 static int calc_h(worldstate_t fr, worldstate_t to) {
@@ -19,7 +19,7 @@ static int calc_h(worldstate_t fr, worldstate_t to) {
 }
 
 //!< Internal function to look up a world state in our opened set.
-static int idx_in(worldstate_t ws, astarnode_t* set, size_t size) {
+static int idx_in(worldstate_t ws, astarnode* set, size_t size) {
     for (int i = 0; i < size; ++i)
         if (set[i].ws.values == ws.values)
             return i;
@@ -28,8 +28,8 @@ static int idx_in(worldstate_t ws, astarnode_t* set, size_t size) {
 
 //!< Internal function to reconstruct the plan by tracing from last node to initial node.
 static void reconstruct_plan(
-    actionplanner_t *ap, astarnode_t *goalnode, const char **plan, worldstate_t *worldstates, int *plansize) {
-    astarnode_t *curnode = goalnode;
+    actionplanner_t *ap, astarnode *goalnode, const char **plan, worldstate_t *worldstates, int *plansize) {
+    astarnode *curnode = goalnode;
     int idx = *plansize - 1;
     int numsteps = 0;
     while (curnode && curnode->actionname) {
@@ -83,7 +83,7 @@ int astar_plan(
     int *plansize) {
     // put start in opened list
     opened.clear();
-    astarnode_t n0;
+    astarnode n0;
     n0.ws = start;
     n0.parentws = start;
     n0.g = 0;
@@ -109,7 +109,7 @@ int astar_plan(
             }
         }
         // remove the node with the lowest rank
-        astarnode_t cur = opened[lowestIdx];
+        astarnode cur = opened[lowestIdx];
         if (!opened.empty()) {
             opened[lowestIdx] = opened.back();
         }
@@ -134,7 +134,7 @@ int astar_plan(
             goap_get_possible_state_transitions(ap, cur.ws, to, actionnames, actioncosts, MAXACTIONS);
         //printf( "%d neighbours\n", numtransitions );
         for (int i = 0; i < numtransitions; ++i) {
-            astarnode_t nb;
+            astarnode nb;
             const int cost = cur.g + actioncosts[i];
             int idx_o = idx_in(to[i], opened.data(), opened.size());
             int idx_c = idx_in(to[i], closed.data(), closed.size());
