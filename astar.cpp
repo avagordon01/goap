@@ -24,17 +24,9 @@ static int calc_h(worldstate_t fr, worldstate_t to) {
 }
 
 //!< Internal function to look up a world state in our opened set.
-static int idx_in_opened(worldstate_t ws) {
-    for (int i = 0; i < numOpened; ++i)
-        if (opened[i].ws.values == ws.values)
-            return i;
-    return -1;
-}
-
-//!< Internal function to lookup a world state in our closed set.
-static int idx_in_closed(worldstate_t ws) {
-    for (int i = 0; i < numClosed; ++i)
-        if (closed[i].ws.values == ws.values)
+static int idx_in(worldstate_t ws, astarnode_t* set, size_t size) {
+    for (int i = 0; i < size; ++i)
+        if (set[i].ws.values == ws.values)
             return i;
     return -1;
 }
@@ -49,7 +41,7 @@ static void reconstruct_plan(
         if (idx >= 0) {
             plan[idx] = curnode->actionname;
             worldstates[idx] = curnode->ws;
-            const int i = idx_in_closed(curnode->parentws);
+            const int i = idx_in(curnode->parentws, closed, numClosed);
             curnode = (i == -1) ? 0 : closed + i;
         }
         --idx;
@@ -152,8 +144,8 @@ int astar_plan(
         for (int i = 0; i < numtransitions; ++i) {
             astarnode_t nb;
             const int cost = cur.g + actioncosts[i];
-            int idx_o = idx_in_opened(to[i]);
-            int idx_c = idx_in_closed(to[i]);
+            int idx_o = idx_in(to[i], opened, numOpened);
+            int idx_c = idx_in(to[i], closed, numClosed);
             // if neighbor in OPEN and cost less than g(neighbor):
             if (idx_o >= 0 && cost < opened[idx_o].g) {
                 // remove neighbor from OPEN, because new path is better
