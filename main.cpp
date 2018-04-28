@@ -5,7 +5,7 @@
 #include <stdio.h>
 
 int main(int argc, char *argv[]) {
-    static actionplanner_t ap;
+    static actionplanner ap;
     goap_actionplanner_clear(&ap);
 
     goap_set_pre(&ap, "scout", "armedwithgun", true);
@@ -36,7 +36,7 @@ int main(int argc, char *argv[]) {
     goap_description(&ap, desc, sizeof(desc));
     printf("%s\n", desc);
 
-    worldstate_t fr;
+    worldstate fr;
     goap_worldstate_clear(&fr);
     goap_worldstate_set(&ap, &fr, "enemyvisible", false);
     goap_worldstate_set(&ap, &fr, "armedwithgun", true);
@@ -49,12 +49,12 @@ int main(int argc, char *argv[]) {
 
     goap_set_cost(&ap, "detonatebomb", 5); // make suicide more expensive than shooting.
 
-    worldstate_t goal;
+    worldstate goal;
     goap_worldstate_clear(&goal);
     goap_worldstate_set(&ap, &goal, "enemyalive", false);
     //goap_worldstate_set( &ap, &goal, "alive", true ); // add this to avoid suicide actions in plan.
 
-    worldstate_t states[16];
+    worldstate states[16];
     const char *plan[16];
     int plansz = 16;
     const int plancost = astar_plan(&ap, fr, goal, plan, states, &plansz);

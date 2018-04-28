@@ -5,9 +5,9 @@
 #include <vector>
 
 //!< This is our heuristic: estimate for remaining distance is the nr of mismatched atoms that matter.
-static int calc_h(worldstate_t fr, worldstate_t to) {
-    const bfield_t care = (to.dontcare ^ -1LL);
-    const bfield_t diff = ((fr.values & care) ^ (to.values & care));
+static int calc_h(worldstate fr, worldstate to) {
+    const bfield care = (to.dontcare ^ -1LL);
+    const bfield diff = ((fr.values & care) ^ (to.values & care));
     int dist = 0;
     for (int i = 0; i < MAXATOMS; ++i)
         if ((diff & (1LL << i)) != 0)
@@ -16,7 +16,7 @@ static int calc_h(worldstate_t fr, worldstate_t to) {
 }
 
 //!< Internal function to look up a world state in our opened set.
-static int idx_in(worldstate_t ws, std::vector<astarnode> set) {
+static int idx_in(worldstate ws, std::vector<astarnode> set) {
     for (int i = 0; i < set.size(); ++i)
         if (set[i].ws.values == ws.values)
             return i;
@@ -25,7 +25,7 @@ static int idx_in(worldstate_t ws, std::vector<astarnode> set) {
 
 //!< Internal function to reconstruct the plan by tracing from last node to initial node.
 static void reconstruct_plan(
-    actionplanner_t *ap, astarnode *goalnode, const char **plan, worldstate_t *worldstates, int *plansize, std::vector<astarnode> closed) {
+    actionplanner *ap, astarnode *goalnode, const char **plan, worldstate *worldstates, int *plansize, std::vector<astarnode> closed) {
     astarnode *curnode = goalnode;
     int idx = *plansize - 1;
     int numsteps = 0;
@@ -72,11 +72,11 @@ while lowest rank in OPEN is not the GOAL:
  */
 
 int astar_plan(
-    actionplanner_t *ap,
-    worldstate_t start,
-    worldstate_t goal,
+    actionplanner *ap,
+    worldstate start,
+    worldstate goal,
     const char **plan,
-    worldstate_t *worldstates,
+    worldstate *worldstates,
     int *plansize) {
     std::vector<astarnode> opened;
     std::vector<astarnode> closed;
@@ -105,7 +105,7 @@ int astar_plan(
         opened[lowestIdx] = opened.back();
         opened.pop_back();
         // if it matches the goal, we are done!
-        const bfield_t care = (goal.dontcare ^ -1LL);
+        const bfield care = (goal.dontcare ^ -1LL);
         const bool match = ((cur.ws.values & care) == (goal.values & care));
         if (match) {
             reconstruct_plan(ap, &cur, plan, worldstates, plansize, closed);
@@ -116,7 +116,7 @@ int astar_plan(
         // iterate over neighbours
         const char *actionnames[MAXACTIONS];
         int actioncosts[MAXACTIONS];
-        worldstate_t to[MAXACTIONS];
+        worldstate to[MAXACTIONS];
         const int numtransitions =
             goap_get_possible_state_transitions(ap, cur.ws, to, actionnames, actioncosts, MAXACTIONS);
         for (int i = 0; i < numtransitions; ++i) {
