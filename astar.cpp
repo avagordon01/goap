@@ -2,15 +2,10 @@
 #include "goap.hpp"
 
 #include <limits.h>
+#include <vector>
 
-#define MAXOPEN 1024 //!< The maximum number of nodes we can store in the opened set.
-#define MAXCLOS 1024 //!< The maximum number of nodes we can store in the closed set.
-
-static astarnode_t opened[MAXOPEN]; //!< The set of nodes we should consider.
-static astarnode_t closed[MAXCLOS]; //!< The set of nodes we already visited.
-
-static int numOpened = 0; //!< The nr of nodes in our opened set.
-static int numClosed = 0; //!< The nr of nodes in our closed set.
+static std::vector<astarnode_t> opened;
+static std::vector<astarnode_t> closed;
 
 //!< This is our heuristic: estimate for remaining distance is the nr of mismatched atoms that matter.
 static int calc_h(worldstate_t fr, worldstate_t to) {
@@ -41,8 +36,8 @@ static void reconstruct_plan(
         if (idx >= 0) {
             plan[idx] = curnode->actionname;
             worldstates[idx] = curnode->ws;
-            const int i = idx_in(curnode->parentws, closed, numClosed);
-            curnode = (i == -1) ? 0 : closed + i;
+            const int i = idx_in(curnode->parentws, closed.data(), closed.size());
+            curnode = (i == -1) ? 0 : &closed[i];
         }
         --idx;
         numsteps++;
@@ -87,7 +82,7 @@ int astar_plan(
     worldstate_t *worldstates,
     int *plansize) {
     // put start in opened list
-    numOpened = 0;
+    opened.clear();
     astarnode_t n0;
     n0.ws = start;
     n0.parentws = start;
@@ -95,19 +90,19 @@ int astar_plan(
     n0.h = calc_h(start, goal);
     n0.f = n0.g + n0.h;
     n0.actionname = 0;
-    opened[numOpened++] = n0;
+    opened.push_back(n0);
     // empty closed list
-    numClosed = 0;
+    closed.clear();
 
     do {
-        if (numOpened == 0) {
+        if (opened.empty()) {
             printf("Did not find a path.\n");
             return -1;
         }
         // find the node with lowest rank
         int lowestIdx = -1;
         int lowestVal = INT_MAX;
-        for (int i = 0; i < numOpened; ++i) {
+        for (int i = 0; i < opened.size(); ++i) {
             if (opened[i].f < lowestVal) {
                 lowestVal = opened[i].f;
                 lowestIdx = i;
@@ -115,9 +110,10 @@ int astar_plan(
         }
         // remove the node with the lowest rank
         astarnode_t cur = opened[lowestIdx];
-        if (numOpened)
-            opened[lowestIdx] = opened[numOpened - 1];
-        numOpened--;
+        if (!opened.empty()) {
+            opened[lowestIdx] = opened.back();
+        }
+        opened.pop_back();
         //static char dsc[2048];
         //goap_worldstate_description( ap, &cur.ws, dsc, sizeof(dsc) );
         //printf( dsc );
@@ -129,11 +125,7 @@ int astar_plan(
             return cur.f;
         }
         // add it to closed
-        closed[numClosed++] = cur;
-        if (numClosed == MAXCLOS) {
-            printf("Closed set overflow\n");
-            return -1;
-        } // ran out of storage for closed set
+        closed.push_back(cur);
         // iterate over neighbours
         const char *actionnames[MAXACTIONS];
         int actioncosts[MAXACTIONS];
@@ -144,22 +136,24 @@ int astar_plan(
         for (int i = 0; i < numtransitions; ++i) {
             astarnode_t nb;
             const int cost = cur.g + actioncosts[i];
-            int idx_o = idx_in(to[i], opened, numOpened);
-            int idx_c = idx_in(to[i], closed, numClosed);
+            int idx_o = idx_in(to[i], opened.data(), opened.size());
+            int idx_c = idx_in(to[i], closed.data(), closed.size());
             // if neighbor in OPEN and cost less than g(neighbor):
             if (idx_o >= 0 && cost < opened[idx_o].g) {
                 // remove neighbor from OPEN, because new path is better
-                if (numOpened)
-                    opened[idx_o] = opened[numOpened - 1];
-                numOpened--;
+                if (!opened.empty()) {
+                    opened[idx_o] = opened.back();
+                }
+                opened.pop_back();
                 idx_o = -1; // BUGFIX: neighbor is no longer in OPEN, signal this so that we can re-add it.
             }
             // if neighbor in CLOSED and cost less than g(neighbor):
             if (idx_c >= 0 && cost < closed[idx_c].g) {
                 // remove neighbor from CLOSED
-                if (numClosed)
-                    closed[idx_c] = closed[numClosed - 1];
-                numClosed--;
+                if (!closed.empty()) {
+                    closed[idx_c] = closed.back();
+                }
+                closed.pop_back();
                 idx_c = -1; // BUGFIX: neighbour is no longer in CLOSED< signal this so that we can re-add it.
             }
             // if neighbor not in OPEN and neighbor not in CLOSED:
@@ -170,12 +164,8 @@ int astar_plan(
                 nb.f = nb.g + nb.h;
                 nb.actionname = actionnames[i];
                 nb.parentws = cur.ws;
-                opened[numOpened++] = nb;
+                opened.push_back(nb);
             }
-            if (numOpened == MAXOPEN) {
-                printf("Opened set overflow\n");
-                return -1;
-            } // ran out of storage for opened set
         }
     } while (true);
 
