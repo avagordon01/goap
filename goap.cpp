@@ -50,16 +50,16 @@ void goap_actionplanner_clear(actionplanner *ap) {
 }
 
 void goap_worldstate_clear(worldstate *ws) {
-    ws->values = 0LL;
-    ws->dontcare = -1LL;
+    ws->values = bfield();
+    ws->dontcare = bfield().set();
 }
 
 bool goap_worldstate_set(actionplanner *ap, worldstate *ws, const char *atomname, bool value) {
     const int idx = idx_for_atomname(ap, atomname);
     if (idx == -1)
         return false;
-    ws->values = value ? (ws->values | (1LL << idx)) : (ws->values & ~(1LL << idx));
-    ws->dontcare &= ~(1LL << idx);
+    ws->values.set(idx, value);
+    ws->dontcare.set(idx, false);
     return true;
 }
 
@@ -92,14 +92,14 @@ bool goap_set_cost(actionplanner *ap, const char *actionname, int cost) {
 void goap_worldstate_description(const actionplanner *ap, const worldstate *ws, char *buf, int sz) {
     int added = 0;
     for (int i = 0; i < MAXATOMS; ++i) {
-        if ((ws->dontcare & (1LL << i)) == 0LL) {
+        if (!ws->dontcare.test(i)) {
             const char *val = ap->atm_names[i];
             char upval[128];
             size_t j;
             for (j = 0; j < strlen(val); ++j)
                 upval[j] = (val[j] - 32);
             upval[j++] = 0;
-            const bool set = ((ws->values & (1LL << i)) != 0LL);
+            const bool set = ws->values.test(i);
             added = snprintf(buf, sz, "%s,", set ? upval : val);
             buf += added;
             sz -= added;
@@ -117,15 +117,15 @@ void goap_description(actionplanner *ap, char *buf, int sz) {
         worldstate pre = ap->act_pre[a];
         worldstate pst = ap->act_pst[a];
         for (int i = 0; i < MAXATOMS; ++i)
-            if ((pre.dontcare & (1LL << i)) == 0LL) {
-                bool v = (pre.values & (1LL << i)) != 0LL;
+            if (!pre.dontcare.test(i)) {
+                bool v = pre.values.test(i);
                 added = snprintf(buf, sz, "  %s==%d\n", ap->atm_names[i], v);
                 sz -= added;
                 buf += added;
             }
         for (int i = 0; i < MAXATOMS; ++i)
-            if ((pst.dontcare & (1LL << i)) == 0LL) {
-                bool v = (pst.values & (1LL << i)) != 0LL;
+            if (!pst.dontcare.test(i)) {
+                bool v = pst.values.test(i);
                 added = snprintf(buf, sz, "  %s:=%d\n", ap->atm_names[i], v);
                 sz -= added;
                 buf += added;
@@ -136,7 +136,7 @@ void goap_description(actionplanner *ap, char *buf, int sz) {
 static worldstate goap_do_action(actionplanner *ap, int actionnr, worldstate fr) {
     const worldstate pst = ap->act_pst[actionnr];
     const bfield unaffected = pst.dontcare;
-    const bfield affected = (unaffected ^ -1LL);
+    const bfield affected = ~unaffected;
 
     fr.values = (fr.values & unaffected) | (pst.values & affected);
     fr.dontcare &= pst.dontcare;
@@ -149,7 +149,7 @@ int goap_get_possible_state_transitions(
     for (int i = 0; i < ap->numactions && writer < cnt; ++i) {
         // see if precondition is met
         const worldstate pre = ap->act_pre[i];
-        const bfield care = (pre.dontcare ^ -1LL);
+        const bfield care = ~pre.dontcare;
         const bool met = ((pre.values & care) == (fr.values & care));
         if (met) {
             actionnames[writer] = ap->act_names[i];

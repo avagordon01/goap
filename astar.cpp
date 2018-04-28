@@ -6,13 +6,9 @@
 
 //!< This is our heuristic: estimate for remaining distance is the nr of mismatched atoms that matter.
 static int calc_h(worldstate fr, worldstate to) {
-    const bfield care = (to.dontcare ^ -1LL);
+    const bfield care = ~to.dontcare;
     const bfield diff = ((fr.values & care) ^ (to.values & care));
-    int dist = 0;
-    for (int i = 0; i < MAXATOMS; ++i)
-        if ((diff & (1LL << i)) != 0)
-            dist++;
-    return dist;
+    return diff.count();
 }
 
 //!< Internal function to look up a world state in our opened set.
@@ -105,7 +101,7 @@ int astar_plan(
         opened[lowestIdx] = opened.back();
         opened.pop_back();
         // if it matches the goal, we are done!
-        const bfield care = (goal.dontcare ^ -1LL);
+        const bfield care = ~goal.dontcare;
         const bool match = ((cur.ws.values & care) == (goal.values & care));
         if (match) {
             reconstruct_plan(ap, &cur, plan, worldstates, plansize, closed);

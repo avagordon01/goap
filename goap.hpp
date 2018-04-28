@@ -2,11 +2,12 @@
 
 #include <cstdbool>
 #include <cstdint>
+#include <bitset>
 
-#define MAXATOMS 64
+#define MAXATOMS 256
 #define MAXACTIONS 64
 
-typedef int64_t bfield;
+typedef std::bitset<MAXATOMS> bfield;
 
 //!< Describes the world state by listing values (t/f) for all known atoms.
 typedef struct {
